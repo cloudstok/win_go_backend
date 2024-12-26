@@ -23,23 +23,31 @@ const colorMap = {
 };
 
 const colorChips = {
-    11: 'gr',
-    12: 'vl',
-    13: 'rd'
+    10: 'gr',
+    11: 'vl',
+    12: 'rd'
 };
+
+const numChips = {
+    13: [5, 6, 7, 8, 9],
+    14: [0, 1, 2, 3, 4]
+}
 
 // Constants for multipliers
 const MULTIPLIERS = {
-    numberMatch: 9.6,
+    numberMatch: 9.0,
     colorMatch: 2.0,
-    violetMatch: 4.8,
-    bonusMatch: 1.6
+    violetMatch: 2.0,
+    bonusMatch: 1.5,
+    sizeMatch: 2.0
 };
 
 const getPayoutMultiplier = (chip, winningNumber) =>{
     const chipNum = Number(chip);
     const winningNum = Number(winningNumber);
     if (chipNum === winningNum) return MULTIPLIERS.numberMatch;
+    const chipSize = numChips[chipNum];
+    if(chipSize && chipSize.includes(winningNum)) return MULTIPLIERS.sizeMatch;
     const chipColor = colorChips[chipNum];
     const winningColor = colorMap[winningNum];
     if (!chipColor || !winningColor) return 0;
@@ -49,6 +57,30 @@ const getPayoutMultiplier = (chip, winningNumber) =>{
     }
     return 0;
 }
+const getDetailsFromWinningNumber = (num) => {
+    const resultData = {
+        color: colorMap[num],
+        winningNumber: num,
+    };
+    resultData['category'] = numChips['13'].includes(num) ? 'BIG' : 'SMALL'
+    switch (resultData['color']){
+        case 'gr' : 
+            resultData['color'] = 'Green'
+        break;
+        case 'rd' :
+            resultData['color'] = 'Red'
+        break;
+        case 'rd-vl' :
+            resultData['color'] = 'Red-Violet'
+        break;
+        case 'gr-vl' :
+            resultData['color'] = 'Green-Voilet'
+        break;
+        default :
+            resultData['color'] = ''
+    };
+    return resultData;
+}
 
 
-module.exports = { logEventAndEmitResponse, getPayoutMultiplier, getPayoutMultiplier }
+module.exports = { logEventAndEmitResponse, getPayoutMultiplier, getPayoutMultiplier, getDetailsFromWinningNumber }

@@ -13,38 +13,38 @@ const initColor = async (io) => {
 }
 
 const initLobby = async (io, delay, lobbyNumber) => {
-    console.log({delay, lobbyNumber});
     const lobbyId = `${Date.now()}-${lobbyNumber}`;
     let recurLobbyData = { lobbyId, status: 0};
-    setCurrentLobby(recurLobbyData);
-    const start_delay = delay;
+
+    setCurrentLobby(lobbyNumber, recurLobbyData);
+    let start_delay = delay;
     const result = Math.floor(Math.random() * 10);
-    const end_delay = 5;
+    const end_delay = 2;
     
-    for (let x = 1; x <= start_delay; x++) {
-        io.emit("message", {eventName: 'color', data: {message: `${lobbyId}:${x}:STARTING`}});
+    for (let x = start_delay; x > 0; x--) {
+        io.emit("color" , `${lobbyId}:${start_delay}:STARTING`);
+        start_delay--;
         await sleep(1000);
     }
 
 
     recurLobbyData['status'] = 1;
-    setCurrentLobby(recurLobbyData);
-    io.emit("message", {eventName: 'color', data: {message: `${lobbyId}:${result}:RESULT`}});
+    setCurrentLobby(lobbyNumber, recurLobbyData);
+    io.emit('color',`${lobbyId}:${result}:RESULT`);
 
-    await sleep(1000);
-    // await settleBet(io, result, lobbyId);
+    await settleBet(io, result, lobbyId);
 
     recurLobbyData['status'] = 2;
-    setCurrentLobby(recurLobbyData);
+    setCurrentLobby(lobbyNumber, recurLobbyData);
     for (let z = 1; z <= end_delay; z++) {
-        io.emit('message', {eventName: "color", data: {message: `${lobbyId}:${z}:ENDED`}});
+        io.emit("color" , `${lobbyId}:${z}:ENDED`);
         await sleep(1000);
     }
 
-    const history = { time: new Date(), lobbyId, start_delay, end_delay, result };
-    io.emit("history", JSON.stringify(history));
-    // logger.info(JSON.stringify(history));
-    //await insertLobbies(history);
+    const history = { time: new Date(), lobbyId, roomId: Number(lobbyId.split('-')[1]), start_delay, end_delay, result };
+    io.emit("history", JSON.stringify({ roomId: history.roomId, result}));
+    logger.info(JSON.stringify(history));
+    await insertLobbies(history);
     return initLobby(io, delay, lobbyNumber);
 }
 

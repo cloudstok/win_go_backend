@@ -2,7 +2,7 @@ const { prepareDataForWebhook, postDataToSourceForBet, getHalls } = require('../
 const { addSettleBet, insertBets, insertStatsData } = require('./bets-db');
 const { appConfig } = require('../../utilities/app-config');
 const { deleteCache, setCache, getCache } = require('../../utilities/redis-connection');
-const { logEventAndEmitResponse, getPayoutMultiplier } = require('../../utilities/helper-function');
+const { logEventAndEmitResponse, getPayoutMultiplier, getDetailsFromWinningNumber } = require('../../utilities/helper-function');
 const getLogger = require('../../utilities/logger');
 const { sendToQueue } = require('../../utilities/amqp');
 const logger = getLogger('Bets', 'jsonl');
@@ -11,10 +11,10 @@ const failedBetsLogger = getLogger('userFailedBets', 'log');
 const creditQueueLogger = getLogger('CreditQueue', 'jsonl');
 
 
-let lobbyData = {};
+let lobbies = {};
 
-const setCurrentLobby = (data) => {
-    lobbyData = data;
+const setCurrentLobby = (roomId, data) => {
+    lobbies[roomId] = data;
 };
 
 const placeBet = async (io, socket, betData) => {
@@ -22,38 +22,35 @@ const placeBet = async (io, socket, betData) => {
     if (!playerDetails) return socket.emit('message', { eventName: 'betError', data: { message: 'Invalid Player Details', status: false } });
     const parsedPlayerDetails = JSON.parse(playerDetails);
     const { userId, operatorId, token, game_id, balance } = parsedPlayerDetails;
-    const roomId = Number(betData[1]);
-    const userBets = betData[0].split(',');
-    const bet_id = `BT:${userId}:${operatorId}`;
-    const betObj = { bet_id, token, socket_id: parsedPlayerDetails.socketId, game_id, roomId };
-    const halls = getHalls();
-    const roomDetails = halls.find(room => room.id == [Number(roomId)]);
-    if (!roomDetails) return logEventAndEmitResponse(socket, betObj, 'Invalid Room Id Passed', 'bet');
+    const lobbyId = betData[0];
+    const roomId = Number(betData[2]);
+    const userBets = betData[1].split(',');
+    const bet_id = `BT:${lobbyId}:${roomId}:${userId}:${operatorId}`;
+    const betObj = { bet_id, token, socket_id: parsedPlayerDetails.socketId, game_id, roomId, lobby_id: lobbyId };
+    const rooms = [101, 102, 103, 104];
+    console.log(lobbies[roomId], "okk");
+    if(lobbies[roomId].lobbyId !== lobbyId || lobbies[roomId].status != 0) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet', 'bet');
+    if(!rooms.includes(roomId)) return logEventAndEmitResponse(socket, betObj, 'Invalid Room Id Passed', 'bet');
+    let isInvalidBet = 0;
     let totalBetAmount = 0;
-    let isBetInvalid = 0;
     const bets = [];
     userBets.map(bet => {
-        const [lobby_id, betAmount, chip] = bet.split('-');
+        const [chip, betAmount] = bet.split('-');
         const data = { betAmount, chip };
-        if (!roomDetails.chips.includes(Number(betAmount))) isBetInvalid = 1;
-        if (Number(betAmount) < roomDetails.min || Number(betAmount) > roomDetails.max) isBetInvalid = 1;
-        if (lobbyData.lobbyId != lobby_id && lobbyData.status != 0) isBetInvalid = 1;
+        if(betAmount < Number(appConfig.minBetAmount) || betAmount > Number(appConfig.maxBetAmount)) isInvalidBet = 1;
         totalBetAmount += Number(betAmount);
         bets.push(data);
     });
 
+    if(isInvalidBet) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet Amount', 'bet');
     if(totalBetAmount < Number(appConfig.minBetAmount) || totalBetAmount > Number(appConfig.maxBetAmount)) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet Amount', 'bet');
-
-    if(isBetInvalid){
-        return logEventAndEmitResponse(socket, betObj, 'Invalid Bet', 'bet');
-    }
 
     if (Number(totalBetAmount) > Number(balance)) {
         return logEventAndEmitResponse(socket, betObj, 'Insufficient Balance', 'bet');
     }
     
-    Object.assign(betObj, { bet_amount: totalBetAmount, userBets: bets, lobby_id: lobbyData.lobbyId });
-    const webhookData = await prepareDataForWebhook({ lobby_id: lobbyData.lobbyId, betAmount: totalBetAmount, game_id, bet_id, user_id: userId }, "DEBIT", socket);
+    Object.assign(betObj, { bet_amount: totalBetAmount, userBets: bets });
+    const webhookData = await prepareDataForWebhook({ lobby_id: lobbyId, betAmount: totalBetAmount, game_id, bet_id, user_id: userId }, "DEBIT", socket);
     betObj.txn_id = webhookData.txn_id;
 
     try {
@@ -63,17 +60,15 @@ const placeBet = async (io, socket, betData) => {
         return logEventAndEmitResponse(socket, betObj, 'Bet cancelled by upstream', 'bet');
     }
 
-    const existingBets = JSON.parse(await getCache(`CG:BETS`)) || [];
+    const existingBets = JSON.parse(await getCache(`CG:${roomId}:BETS`)) || [];
     existingBets.push(betObj);
-    await setCache(`CG:BETS`, JSON.stringify(existingBets));
-    logger.info(JSON.stringify({ betObj }));
+    await setCache(`CG:${roomId}:BETS`, JSON.stringify(existingBets));
+    logger.info(JSON.stringify(betObj));
 
     //Insert into Database
     await insertBets({
         totalBetAmount,
         bet_id,
-        roomId,
-        lobby_id: betObj.lobby_id,
         userBets: betObj.userBets,
     });
 
@@ -85,47 +80,35 @@ const placeBet = async (io, socket, betData) => {
 
 const settleBet = async (io, winningNumber, lobbyId) => {
     try {
-        let oddsData = {
-            lobbyId,
-            resultTime: new Date().toLocaleTimeString(),
-            winCount: Math.floor(Math.random() * (500 - 250 + 1)) + 250,
-            winningNumber,
-            totalBetAmount: Math.floor(Math.random() * (100000 - 5000 + 1)) + 5000,
-        };
-        let sessionBetAmount = 0;
-        let sessionWinCount = 0;
-        let sessionWinAmount = 0;
-        const cachedBets = await getCache('CG:BETS');
+        const roomId = lobbyId.split('-')[1];
+        const cachedBets = await getCache(`CG:${roomId}:BETS`);
         if (cachedBets) {
             const bets = JSON.parse(cachedBets);
             const settlements = [];
             await Promise.all(bets.map(async betData => {
-                const { bet_id, socket_id, token, game_id, lobby_id, txn_id } = betData;
-                const [initial, user_id, operator_id] = bet_id.split(':');
+                const { bet_id, socket_id, token, game_id, txn_id } = betData;
+                const [initial, lobby_id, room_id, user_id, operator_id] = bet_id.split(':');
                 let finalAmount = 0;
                 let totalMultiplier = 0;
                 betData['userBets'].map(bet => {
                     const { betAmount, chip } = bet;
-                    sessionBetAmount += Number(betAmount);
                     const winMultiplier = getPayoutMultiplier(chip, winningNumber);
                     if (winMultiplier > 0) {
-                        sessionWinCount++;
                         totalMultiplier += winMultiplier;
                         const winningAmount = Number(betAmount) * winMultiplier;
                         finalAmount += winningAmount;
                     }
                 });
-                sessionWinAmount += Number(finalAmount);
                 settlements.push({
                     bet_id: betData.bet_id,
-                    lobby_id: betData.lobby_id,
                     totalBetAmount: betData.bet_amount,
                     userBets: betData.userBets,
-                    roomId: betData.roomId,
+                    winning_number: winningNumber,
                     totalMaxMult: totalMultiplier > 0 ? Number(totalMultiplier).toFixed(2) : 0.00,
                     winAmount: finalAmount > 0 ? Number(finalAmount).toFixed(2) : 0.00
                 });
                 settlBetLogger.info(JSON.stringify({ betData, finalAmount, winningNumber, totalMultiplier }));
+                const result = getDetailsFromWinningNumber(winningNumber);
                 if (finalAmount > 0) {
                     const winAmount = finalAmount.toFixed(2);
                     const socket = io.sockets.sockets.get(socket_id) || null;
@@ -139,28 +122,17 @@ const settleBet = async (io, winningNumber, lobbyId) => {
                         await setCache(`PL:${socket_id}`, JSON.stringify(parsedPlayerDetails));
                         io.to(socket_id).emit('message', { eventName: "info", data: { user_id, operator_id, balance: parsedPlayerDetails.balance } });
                     }
-                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You won ${winAmount}`, mywinningAmount: winAmount } });
+                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You won ${winAmount}`, mywinningAmount: Number(winAmount).toFixed(2), status: 'WIN', result } });
+                }else{
+                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You loss ${betData.bet_amount}`, lossAmount: Number(betData.bet_amount).toFixed(2), status: 'LOSS', result } });
                 }
             }));
             await addSettleBet(settlements);
-            await deleteCache('CG:BETS');
+            await deleteCache(`CG:${roomId}:BETS`);
         };
-        const TotalBetAmount = Number(oddsData.totalBetAmount + sessionBetAmount).toFixed(2);
-        const TotalWinningAmount = Number(((oddsData.totalBetAmount + sessionBetAmount) * 0.25) + sessionWinAmount).toFixed(2);
-        Object.assign(oddsData, { totalBetAmount: TotalBetAmount, winCount: oddsData.winCount + sessionWinCount, TotalWinningAmount });
-        await insertStatsData({
-            lobby_id: oddsData.lobbyId,
-            winning_number: winningNumber,
-            total_win_count: oddsData.winCount,
-            total_bet_amount: oddsData.totalBetAmount,
-            total_cashout_amount: oddsData.TotalWinningAmount
-        });
-        io.emit('message', { eventName: 'bet_history', data: oddsData });
     } catch (error) {
         console.error('Error settling bets:', error);
     }
 };
-
-
 
 module.exports = { placeBet, setCurrentLobby, settleBet };

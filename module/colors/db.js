@@ -1,6 +1,6 @@
 const { write } = require('../../utilities/db-connection');
 
-const SQL_INSERT_LOBBIES = 'INSERT INTO lobbies (lobby_id, start_delay, end_delay, result) values(?,?,?,?)';
+const SQL_INSERT_LOBBIES = 'INSERT INTO lobbies (lobby_id, room_id, start_delay, end_delay, result) values(?,?,?,?,?)';
 
 const insertLobbies = async (data) => {
     try {

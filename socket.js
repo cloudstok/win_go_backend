@@ -18,7 +18,7 @@ const initSocket = (io)=> {
             console.log("Invalid token",token);
             return socket.disconnect(true); 
         };
-        socket.emit('message', { eventName: 'info', data: { user_id: userData.userId, operator_id: userData.operatorId, balance: userData.balance}});
+        socket.emit('message', { eventName: 'info', data: { user_id: userData.userId, operator_id: userData.operatorId, balance: Number(userData.balance).toFixed(2)}});
         await setCache(`PL:${socket.id}`, JSON.stringify({...userData, socketId: socket.id}), 3600);
         messageRouter(io, socket);
         socket.on('disconnect', async() => {
