@@ -99,6 +99,7 @@ const settleBet = async (io, winningNumber, lobbyId) => {
                         finalAmount += winningAmount;
                     }
                 });
+                finalAmount = Math.min(finalAmount, appConfig.maxCashoutAmount);
                 settlements.push({
                     bet_id: betData.bet_id,
                     totalBetAmount: betData.bet_amount,
