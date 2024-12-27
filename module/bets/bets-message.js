@@ -31,15 +31,18 @@ const placeBet = async (io, socket, betData) => {
     console.log(lobbies[roomId], "okk");
     if(lobbies[roomId].lobbyId !== lobbyId || lobbies[roomId].status != 0) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet', 'bet');
     if(!rooms.includes(roomId)) return logEventAndEmitResponse(socket, betObj, 'Invalid Room Id Passed', 'bet');
+    let isBetInvalid = 0;
     let totalBetAmount = 0;
     const bets = [];
     userBets.map(bet => {
         const [chip, betAmount] = bet.split('-');
         const data = { betAmount, chip };
-        if(betAmount < Number(appConfig.minBetAmount) || betAmount > Number(appConfig.maxBetAmount)) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet Amount', 'bet');
+        if(betAmount < Number(appConfig.minBetAmount) || betAmount > Number(appConfig.maxBetAmount)) isBetInvalid = 1;
         totalBetAmount += Number(betAmount);
         bets.push(data);
     });
+
+    if(isBetInvalid) return logEventAndEmitResponse(socket, betObj, 'Invalid Bet Amount', 'bet');
 
     if (Number(totalBetAmount) > Number(balance)) {
         return logEventAndEmitResponse(socket, betObj, 'Insufficient Balance', 'bet');
