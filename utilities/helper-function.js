@@ -37,7 +37,7 @@ const numChips = {
 const MULTIPLIERS = {
     numberMatch: 9.0,
     colorMatch: 2.0,
-    violetMatch: 2.0,
+    violetMatch: 4.5,
     bonusMatch: 1.5,
     sizeMatch: 2.0
 };
@@ -74,7 +74,7 @@ const getDetailsFromWinningNumber = (num) => {
             resultData['color'] = 'Red-Violet'
         break;
         case 'gr-vl' :
-            resultData['color'] = 'Green-Voilet'
+            resultData['color'] = 'Green-Violet'
         break;
         default :
             resultData['color'] = ''

@@ -13,7 +13,13 @@ const initColor = async (io) => {
 }
 
 const initLobby = async (io, delay, lobbyNumber) => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    // const lobbyId = `${year}${month}${day}${Date.now()}-${lobbyNumber}`;
     const lobbyId = `${Date.now()}-${lobbyNumber}`;
+
     let recurLobbyData = { lobbyId, status: 0};
 
     setCurrentLobby(lobbyNumber, recurLobbyData);
