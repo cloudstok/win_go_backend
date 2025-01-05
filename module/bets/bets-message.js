@@ -117,10 +117,10 @@ const settleBet = async (io, winningNumber, lobbyId) => {
                         await setCache(`PL:${socket_id}`, JSON.stringify(parsedPlayerDetails));
                         io.to(socket_id).emit('message', { eventName: "info", data: { user_id, operator_id, balance: parsedPlayerDetails.balance } });
                     }
-                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You won ${finalWinAmount}`, mywinningAmount: Number(finalWinAmount).toFixed(2), status: 'WIN', result, roomId } });
+                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You won ${finalWinAmount}`, mywinningAmount: Number(finalWinAmount).toFixed(2), status: 'WIN', result, roomId, lobby_id } });
                 } else {
                     const lossAmount = bet.reduce((a, b) => a + Number(b.betAmount), 0).toFixed(2);
-                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You loss ${lossAmount}`, lossAmount, status: 'LOSS', result, roomId } });
+                    io.to(socket_id).emit('message', { eventName: 'settlement', data: { message: `You loss ${lossAmount}`, lossAmount, status: 'LOSS', result, roomId, lobby_id } });
                 }
             }))
             await addSettleBet(settlements);
