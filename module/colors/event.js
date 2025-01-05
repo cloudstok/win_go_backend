@@ -20,7 +20,6 @@ const initLobby = async (io, delay, lobbyNumber) => {
     const formattedMonth = month.length == 1 ? `0${month}` : month;
     const formattedDay = day.length == 1 ? `0${day}` : day;
     const lobbyId = `${year}${formattedMonth}${formattedDay}${Date.now()}-${lobbyNumber}`;
-    // const lobbyId = `${Date.now()}-${lobbyNumber}`;
 
     let recurLobbyData = { lobbyId, status: 0};
 
