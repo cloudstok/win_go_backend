@@ -69,7 +69,7 @@ const initLobby = async (io, delay, lobbyNumber, results) => {
         await sleep(1000);
     }
 
-    const history = { time: new Date(), lobbyId, roomId: Number(lobbyId.split('-')[1]), start_delay, end_delay, result };
+    const history = { time: new Date(), lobbyId, roomId: Number(lobbyId.split('-')[1]), start_delay: delay, end_delay, result };
     io.emit("history", JSON.stringify({ roomId: history.roomId, result }));
     logger.info(JSON.stringify(history));
     await insertLobbies(history);
