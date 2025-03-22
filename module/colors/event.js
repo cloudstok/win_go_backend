@@ -30,8 +30,7 @@ function getResultNumber() {
     let odds = [];
     let evens = [];
 
-    const randNo = Math.random();
-    let oddCount = randNo < 0.3 ? (randNo < 0.6 ? 1 : 4) : 3;
+    let oddCount =  Math.floor(Math.random() * 5);
     let evenCount = 4 - oddCount;
 
     while (odds.length < oddCount || evens.length < evenCount) {
