@@ -26,12 +26,43 @@ function getSingleResult(array, index){
 }
 
 function getResultNumber() {
-    let set = new Set()
-    while ([...set].length !== 4) {
-        set.add(Math.floor(Math.random() * 10))
+    let result = [];
+    let odds = [];
+    let evens = [];
+
+    const randNo = Math.random();
+    let oddCount = randNo < 0.3 ? (randNo < 0.6 ? 1 : 4) : 3;
+    let evenCount = 4 - oddCount;
+
+    while (odds.length < oddCount || evens.length < evenCount) {
+        let randomNumber = Math.floor(Math.random() * 10);
+        if (randomNumber % 2 === 0 && evens.length < evenCount) {
+            if (!evens.includes(randomNumber)) {
+                evens.push(randomNumber);
+            }
+        } else if (randomNumber % 2 !== 0 && odds.length < oddCount) {
+            if (!odds.includes(randomNumber)) {
+                odds.push(randomNumber);
+            }
+        }
     }
-    return [...set];
+
+    result = odds.concat(evens);
+    result = shuffleArray(result);
+    return result;
 }
+
+function shuffleArray(array) {
+    const shuffledArray = [...array];
+  
+    for (let i = shuffledArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1)); // Generate a 
+      [shuffledArray[i], shuffledArray[j]] = [shuffledArray[j], shuffledArray[i]];
+    }
+  
+    return shuffledArray;
+  }
+  
 
 const initLobby = async (io, delay, lobbyNumber, results) => {
     const date = new Date();
