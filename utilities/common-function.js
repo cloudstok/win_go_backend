@@ -33,7 +33,7 @@ const postDataToSourceForBet = async (data) => {
                     token
                 },
                 data: webhookData,
-                timeout: 1000 * 5
+                timeout: 1000 * 10
             };
             axios(clientServerOptions).then((result) => {
                 thirdPartyLogger.info(JSON.stringify({ req: data, res: result?.data }));
